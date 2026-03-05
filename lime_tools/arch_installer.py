@@ -6,17 +6,22 @@ Handles partitioning, formatting, bootloader, system configuration, WiFi/Etherne
 """
 
 import os
+import argparse
 import sys
 import subprocess
 import json
 import time
 import re
+import shutil
 from pathlib import Path
 from typing import List, Dict, Tuple, Optional
 
 class ArchAutoInstaller:
     """Fully automated Arch Linux installer for LiMe OS"""
 
+    def __init__(self, config_file: str = "/tmp/lime-install.json", dry_run: bool = False):
+        self.config_file = config_file
+        self.dry_run = dry_run
     def __init__(self, config_file: str = "/tmp/lime-install.json"):
         self.config_file = config_file
         self.config = self._load_or_create_config()
@@ -74,6 +79,10 @@ class ArchAutoInstaller:
                 print(f"Description: {description}")
             print(f"[{'*' * 50}]")
 
+            if self.dry_run:
+                print("[DRY-RUN] Command not executed")
+                return True, "dry-run"
+
             result = subprocess.run(cmd, capture_output=True, text=True)
 
             if result.returncode != 0 and check:
@@ -109,12 +118,20 @@ class ArchAutoInstaller:
 
     def _check_wifi_hardware(self) -> bool:
         """Check for WiFi hardware"""
+        if shutil.which("ip") is None:
+            return False
         result = subprocess.run(["ip", "link"], capture_output=True, text=True)
         return "wlan" in result.stdout or "wlo" in result.stdout
 
     def _get_total_ram(self) -> int:
         """Get total system RAM in GB"""
         try:
+            meminfo = Path("/proc/meminfo").read_text()
+            match = re.search(r'MemTotal:\s+(\d+)', meminfo)
+            if match:
+                kb = int(match.group(1))
+                return kb // (1024 * 1024)
+        except Exception:
             result = subprocess.run(["grep", "MemTotal", "/proc/meminfo"],
                                   capture_output=True, text=True)
             match = re.search(r'(\d+)', result.stdout)
@@ -137,6 +154,8 @@ class ArchAutoInstaller:
     def _detect_gpu_vendor(self) -> str:
         """Detect primary GPU vendor for driver auto-install."""
         try:
+            if shutil.which("lspci") is None:
+                return "unknown"
             result = subprocess.run(["lspci"], capture_output=True, text=True)
             text = result.stdout.lower()
             if "nvidia" in text:
@@ -166,12 +185,15 @@ class ArchAutoInstaller:
             packages.append("iwd")
 
         return sorted(set(packages))
+
     def detect_disks(self) -> List[str]:
         """Detect available disks"""
         print("\n[DETECTING DISKS]")
 
         disks = []
         try:
+            if shutil.which("lsblk") is None:
+                return disks
             result = subprocess.run(["lsblk", "-dpno", "NAME,SIZE"],
                                   capture_output=True, text=True)
             for line in result.stdout.strip().split('\n'):
@@ -187,6 +209,9 @@ class ArchAutoInstaller:
         """Validate and confirm disk selection"""
         print(f"\n[VALIDATING DISK: {disk}]")
 
+        if shutil.which("lsblk") is not None:
+            result = subprocess.run(["lsblk", disk], capture_output=True, text=True)
+            print(result.stdout)
         result = subprocess.run(["lsblk", "-h", disk], capture_output=True, text=True)
         print(result.stdout)
 
@@ -491,6 +516,7 @@ class ArchAutoInstaller:
         """Set root password"""
         print(f"\n[SETTING ROOT PASSWORD]")
 
+        rootpass = self.config.get("rootpass") or "root"
         rootpass = self.config.get("rootpass", "root")
 
         self._run_cmd(["sh", "-c", f"echo 'root:{rootpass}' | chpasswd"],
@@ -584,6 +610,16 @@ class ArchAutoInstaller:
 
 
 def main():
+    parser = argparse.ArgumentParser(description="LiMe Arch auto-installer")
+    parser.add_argument("--config", default="/tmp/lime-install.json", help="Path to installer config JSON")
+    parser.add_argument("--dry-run", action="store_true", help="Show install commands without executing")
+    args = parser.parse_args()
+
+    if os.geteuid() != 0 and not args.dry_run:
+        print("This script must be run as root (or use --dry-run)")
+        sys.exit(1)
+
+    installer = ArchAutoInstaller(config_file=args.config, dry_run=args.dry_run)
     if os.geteuid() != 0:
         print("This script must be run as root")
         sys.exit(1)

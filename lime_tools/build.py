@@ -14,6 +14,7 @@ import shutil
 import logging
 import argparse
 import multiprocessing
+import hashlib
 import urllib.request
 import hashlib
 import time
@@ -23,6 +24,7 @@ from typing import List, Dict, Tuple, Optional
 
 from lime_tools.project_organizer import organize
 from lime_tools.ai_workbench import AIWorkbench
+from lime_tools.upstream_sync import UpstreamSync, UpstreamConfig
 
 # Configure logging
 log_dir = Path.home() / ".local" / "log"
@@ -42,6 +44,12 @@ logger = logging.getLogger(__name__)
 class LiMeBuilder:
     """Main build system for LiMe OS"""
 
+    def __init__(self, project_root: Path, verbose: bool = False, repo_url: Optional[str] = None, repo_branch: str = "main", sync_upstream: bool = False):
+        self.project_root = Path(project_root).resolve()
+        self.source_root = self.project_root
+        self.repo_url = repo_url
+        self.repo_branch = repo_branch
+        self.sync_upstream = sync_upstream
     def __init__(self, project_root: Path, verbose: bool = False):
         self.project_root = Path(project_root)
         self.verbose = verbose
@@ -62,10 +70,88 @@ class LiMeBuilder:
     def _detect_component_dir(self, candidates: List[str], sentinel: str) -> Path:
         """Find component directory with graceful fallback to project root."""
         for candidate in candidates:
+            directory = self.source_root / candidate
             directory = self.project_root / candidate
             if (directory / sentinel).exists():
                 return directory
         return self.project_root
+
+
+    def _refresh_component_paths(self) -> None:
+        """Recalculate component paths from active source root."""
+        self.de_dir = self._detect_component_dir(["lime-de", "."], "meson.build")
+        self.ai_dir = self._detect_component_dir(["lime-ai", "."], "pyproject.toml")
+        self.installer_dir = self._detect_component_dir(["lime-installer", "."], "installer.py")
+
+    def sync_repository_sources(self) -> bool:
+        """Download/update repository sources into a clean build snapshot."""
+        logger.info("Syncing repository sources...")
+        try:
+            self.build_dir.mkdir(parents=True, exist_ok=True)
+            if shutil.which('git') is None:
+                logger.error("git is required for source sync")
+                return False
+
+            repo_url = self.repo_url
+            if not repo_url:
+                origin = subprocess.run(
+                    ['git', 'config', '--get', 'remote.origin.url'],
+                    cwd=self.project_root,
+                    capture_output=True,
+                    text=True,
+                )
+                if origin.returncode == 0 and origin.stdout.strip():
+                    repo_url = origin.stdout.strip()
+
+            snapshot_root = self.project_root / ".lime-source-snapshot"
+            if snapshot_root.exists():
+                shutil.rmtree(snapshot_root)
+
+            if repo_url:
+                logger.info(f"Cloning source snapshot from {repo_url} ({self.repo_branch})")
+                clone_cmd = ['git', 'clone', '--branch', self.repo_branch, '--recurse-submodules', repo_url, str(snapshot_root)]
+                success, _ = self._run_command(clone_cmd, cwd=self.project_root, error_msg="Source clone failed")
+                if not success:
+                    return False
+
+                self._run_command(['git', 'submodule', 'update', '--init', '--recursive'], cwd=snapshot_root)
+                if shutil.which('git-lfs') is not None:
+                    self._run_command(['git', 'lfs', 'pull'], cwd=snapshot_root)
+            else:
+                logger.warning("No repo URL configured; creating local snapshot from current checkout")
+                shutil.copytree(self.project_root, snapshot_root, ignore=shutil.ignore_patterns('.git', 'build', 'out'))
+
+            self.source_root = snapshot_root
+            self._refresh_component_paths()
+            logger.info(f"✓ Source snapshot ready at: {self.source_root}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to sync repository sources: {e}")
+            return False
+
+    def package_source_snapshot(self) -> bool:
+        """Archive synced repository files for reproducible offline builds."""
+        logger.info("Packaging source snapshot...")
+        try:
+            if self.source_root == self.project_root:
+                logger.warning("No external snapshot detected; packaging current project tree")
+
+            self.out_dir.mkdir(parents=True, exist_ok=True)
+            archive_base = self.out_dir / f"{self.config['iso_name']}-{self.config['version']}-source"
+            archive_path = shutil.make_archive(str(archive_base), 'gztar', root_dir=self.source_root)
+
+            digest = hashlib.sha256(Path(archive_path).read_bytes()).hexdigest()
+            checksum_file = Path(f"{archive_path}.sha256")
+            checksum_file.write_text(f"{digest}  {Path(archive_path).name}\n")
+            size_mb = Path(archive_path).stat().st_size / (1024 * 1024)
+            minimum_mb = self.config.get('min_repo_bundle_mb', 0)
+            if minimum_mb and size_mb < minimum_mb:
+                logger.warning(f"Source archive is {size_mb:.2f} MB, below requested {minimum_mb} MB target")
+            logger.info(f"✓ Source archive created: {archive_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to package source snapshot: {e}")
+            return False
 
     def _load_config(self) -> Dict:
         """Load build configuration"""
@@ -83,6 +169,10 @@ class LiMeBuilder:
             "strip_binaries": True,
             "enable_debug": False,
             "iso_size_limit": 2048,  # MB
+            "min_repo_bundle_mb": 2600,
+            "mint_latest_url": "https://www.linuxmint.com/edition.php?id=326",
+            "cinnamon_upstream": "https://github.com/linuxmint/cinnamon",
+            "cinnamon_branch": "master",
         }
 
         if config_file.exists():
@@ -163,10 +253,33 @@ class LiMeBuilder:
         logger.info("✓ Core prerequisites satisfied")
         return True
 
+    def sync_upstream_assets(self) -> bool:
+        """Optionally sync Linux Mint/Cinnamon upstream references."""
+        if not self.sync_upstream:
+            logger.info("Upstream sync disabled; skipping")
+            return True
+
+        logger.info("Syncing upstream Linux Mint/Cinnamon assets...")
+        try:
+            cfg = UpstreamConfig(
+                mint_page_url=self.config.get('mint_latest_url', 'https://www.linuxmint.com/edition.php?id=326'),
+                cinnamon_repo_url=self.config.get('cinnamon_upstream', 'https://github.com/linuxmint/cinnamon'),
+                cinnamon_branch=self.config.get('cinnamon_branch', 'master'),
+            )
+            syncer = UpstreamSync(self.project_root)
+            syncer.sync(cfg)
+            logger.info("✓ Upstream assets synced")
+            return True
+        except Exception as e:
+            logger.warning(f"Upstream sync skipped due to network/access issue: {e}")
+            return True
+
     def organize_project(self) -> bool:
         """Ensure project folders and placeholders are organized."""
         logger.info("Organizing project layout...")
         try:
+            organize(self.source_root)
+            AIWorkbench(self.source_root).scaffold()
             organize(self.project_root)
             AIWorkbench(self.project_root).scaffold()
             logger.info("✓ Project layout organized")
@@ -209,6 +322,7 @@ class LiMeBuilder:
 
     def _ensure_archiso_scaffold(self) -> None:
         """Create a minimal archiso layout when missing so ISO builds can proceed."""
+        self.archiso_dir = self.source_root / "archiso"
         if self.archiso_dir.exists():
             return
 
@@ -494,6 +608,9 @@ Next Steps:
 
         steps = [
             ("Prerequisites Check", self.check_prerequisites),
+            ("Source Sync", self.sync_repository_sources),
+            ("Upstream Sync", self.sync_upstream_assets),
+            ("Source Packaging", self.package_source_snapshot),
             ("Project Organization", self.organize_project),
             ("Build Environment", self.prepare_build_environment),
             ("LiMe DE", self.build_de),
@@ -581,6 +698,26 @@ def main():
         '--skip-iso',
         action='store_true',
         help='Skip ISO generation (build components only)'
+    )
+
+    parser.add_argument(
+        '--repo-url',
+        type=str,
+        default=None,
+        help='Repository URL to clone before building (defaults to origin remote)'
+    )
+
+    parser.add_argument(
+        '--repo-branch',
+        type=str,
+        default='main',
+        help='Repository branch to clone for source sync'
+    )
+
+    parser.add_argument(
+        '--sync-upstream',
+        action='store_true',
+        help='Download Linux Mint metadata and Cinnamon upstream snapshot'
     )
 
     args = parser.parse_args()
