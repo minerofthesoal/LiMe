@@ -347,3 +347,30 @@ Contributions welcome! Areas that can be improved:
 **Version**: 0.1.0 (Alpha)
 **Platform**: Linux (x86_64)
 **Desktop Session**: LiMe/Cinnamon compatible
+
+## v0.1.1-prealpha Improvements
+
+- Organized automation code into `lime_tools/` with compatibility launchers at repository root.
+- Added project layout organizer for build, packager, ui, install, assets/backgrounds, models, and datasets directories.
+- Added AI workbench scaffolding for model training configs, dataset manifests, paper templates, and GGUF-oriented metadata.
+- Added a lightweight Custom API v1 server (`lime_tools/api_v1.py`) with health and API-key state endpoints.
+- Added hardware-aware driver package auto-selection in the Arch installer flow.
+- Builder now supports source syncing from repository URL/branch (`--repo-url`, `--repo-branch`) and creates a clean source snapshot before building.
+
+- Reorganized C sources into `src/de/` and headers into `include/lime-de/` for cleaner structure and easier maintenance.
+- Builder now packages a full source archive with SHA256 checksum after syncing repository files for reproducible/offline builds.
+- Added upstream sync tooling to pull Linux Mint edition metadata and Cinnamon upstream snapshots for fork tracking.
+- Added a long-form install/build operations manual at `install/BUILD_AND_INSTALL_INSTRUCTIONS.md` (1000+ lines).
+
+
+## v0.1.1.1-prealpha Hotfixes
+
+- Fixed a startup edge case in the builder by safely resolving source root before component path detection.
+- Updated versioning and installer title to `v0.1.1.1-prealpha`.
+
+
+## v0.1.1.1-prealpha Script Remake
+
+- Rebuilt `lime_tools/build.py` to eliminate `source_root` initialization regressions and harden step orchestration.
+- Organized shell scripts into `scripts/` and kept root wrappers for backward-compatible commands.
+- Root commands now dispatch to `scripts/*` to avoid unorganized top-level script logic.
