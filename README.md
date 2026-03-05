@@ -361,3 +361,23 @@ Contributions welcome! Areas that can be improved:
 - Builder now packages a full source archive with SHA256 checksum after syncing repository files for reproducible/offline builds.
 - Added upstream sync tooling to pull Linux Mint edition metadata and Cinnamon upstream snapshots for fork tracking.
 - Added a long-form install/build operations manual at `install/BUILD_AND_INSTALL_INSTRUCTIONS.md` (1000+ lines).
+
+
+## v0.1.1.1-prealpha Hotfixes
+
+- Fixed a startup edge case in the builder by safely resolving source root before component path detection.
+- Updated versioning and installer title to `v0.1.1.1-prealpha`.
+
+
+## v0.1.1.1-prealpha Script Remake
+
+- Rebuilt `lime_tools/build.py` to eliminate `source_root` initialization regressions and harden step orchestration.
+- Organized shell scripts into `scripts/` and kept root wrappers for backward-compatible commands.
+- Root commands now dispatch to `scripts/*` to avoid unorganized top-level script logic.
+
+
+## v0.1.1.1 Script + Layout Cleanup
+
+- Rewrote all shell scripts in `scripts/` with strict error handling and valid project-root path resolution.
+- Root shell scripts are now thin wrappers that call organized scripts in `scripts/`.
+- Removed stale path assumptions (`build-tools/...`) and aligned all invocations to the current repository layout.

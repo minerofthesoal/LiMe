@@ -1,68 +1,77 @@
 #!/bin/bash
-# LiMe OS Package Builder
-# Builds PKGBUILD files for Arch Linux packages
+# LiMe package build helper
+set -euo pipefail
 
-set -e
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PACKAGES_DIR="$PROJECT_ROOT/packaging"
+OUT_DIR="$PROJECT_ROOT/out/packages"
 
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-PACKAGES_DIR="${PROJECT_ROOT}/packaging"
-BUILD_DIR="${PROJECT_ROOT}/build/packages"
-OUT_DIR="${PROJECT_ROOT}/out/packages"
+log() { echo "[lime-packages] $*"; }
+warn() { echo "[lime-packages][warn] $*" >&2; }
 
-log_info() { echo "[INFO] $1"; }
-log_error() { echo "[ERROR] $1" >&2; }
-
-mkdir -p "$BUILD_DIR" "$OUT_DIR"
-
-build_package() {
-    local pkg_name="$1"
-    local pkg_dir="${PACKAGES_DIR}/${pkg_name}"
-
-    if [ ! -d "$pkg_dir" ]; then
-        log_error "Package directory not found: $pkg_dir"
-        return 1
-    fi
-
-    log_info "Building package: $pkg_name"
-
-    cd "$pkg_dir"
-
-    # Update PKGBUILD
-    if [ -f "PKGBUILD" ]; then
-        # Clean previous builds
-        rm -rf src pkg *.pkg.tar.zst
-
-        # Build package
-        makepkg -s --noconfirm
-
-        # Copy to output
-        mv *.pkg.tar.zst "$OUT_DIR/" 2>/dev/null || log_error "Build failed for $pkg_name"
-        log_info "✓ Package built: $pkg_name"
-    fi
-
-    return 0
+usage() {
+  cat <<USAGE
+Usage: $0 [package1 package2 ...]
+If no package names are provided, a default LiMe package set is attempted.
+USAGE
 }
 
-# Build all packages
-log_info "Starting package builds..."
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage
+  exit 0
+fi
 
-# LiMe DE
-build_package "lime-cinnamon" || true
+mkdir -p "$OUT_DIR"
 
-# LiMe Installer
-build_package "lime-installer" || true
+DEFAULT_PACKAGES=(
+  lime-cinnamon
+  lime-ai-app
+  lime-installer
+  lime-welcome
+  lime-themes
+  lime-control-center
+)
 
-# LiMe AI App
-build_package "lime-ai-app" || true
+if [[ $# -gt 0 ]]; then
+  PACKAGES=("$@")
+else
+  PACKAGES=("${DEFAULT_PACKAGES[@]}")
+fi
 
-# LiMe Welcome
-build_package "lime-welcome" || true
+if ! command -v makepkg >/dev/null 2>&1; then
+  warn "makepkg not found; install base-devel on Arch"
+  exit 1
+fi
 
-# LiMe Themes
-build_package "lime-themes" || true
+for pkg in "${PACKAGES[@]}"; do
+  PKG_DIR="$PACKAGES_DIR/$pkg"
+  if [[ ! -d "$PKG_DIR" ]]; then
+    warn "Package directory missing: $PKG_DIR"
+    continue
+  fi
 
-# LiMe Control Center
-build_package "lime-control-center" || true
+  log "Building $pkg"
+  pushd "$PKG_DIR" >/dev/null
+  rm -rf src pkg *.pkg.tar.zst *.pkg.tar.xz || true
 
-log_info "All packages built successfully!"
-ls -la "$OUT_DIR"
+  if ! makepkg -s --noconfirm; then
+    warn "Build failed for $pkg"
+    popd >/dev/null
+    continue
+  fi
+
+  shopt -s nullglob
+  artifacts=(*.pkg.tar.zst *.pkg.tar.xz)
+  shopt -u nullglob
+  if [[ ${#artifacts[@]} -eq 0 ]]; then
+    warn "No package artifact found for $pkg"
+  else
+    cp -v "${artifacts[@]}" "$OUT_DIR/"
+  fi
+  popd >/dev/null
+
+done
+
+log "Done. Package outputs (if any) are in $OUT_DIR"
+ls -lh "$OUT_DIR" 2>/dev/null || true

@@ -1,88 +1,49 @@
 #!/bin/bash
-# Post-installation script for LiMe OS
-# Runs after the base system is installed to configure LiMe-specific settings
+# LiMe post-install configurator for an installed target root
+set -euo pipefail
 
-set -e
-
-CHROOT_PATH="${1:-.}"
+TARGET_ROOT="${1:-/mnt/lime-os}"
 LIME_USER="${2:-limeuser}"
 
-log_info() { echo "[*] $1"; }
-log_error() { echo "[ERROR] $1" >&2; }
+log() { echo "[lime-post] $*"; }
+warn() { echo "[lime-post][warn] $*" >&2; }
 
-# Enter chroot environment
-if [ "$CHROOT_PATH" != "." ]; then
-    log_info "Entering chroot environment: $CHROOT_PATH"
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  cat <<USAGE
+Usage: $0 [target_root] [username]
+Example: $0 /mnt/lime-os ceo
+USAGE
+  exit 0
 fi
 
-# Configure GRUB
-log_info "Configuring GRUB bootloader..."
-chroot "$CHROOT_PATH" /bin/bash -c "
-    grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=LiMe
-    grub-mkconfig -o /boot/grub/grub.cfg
-"
-
-# Enable LightDM display manager
-log_info "Enabling display manager..."
-chroot "$CHROOT_PATH" /bin/bash -c "
-    systemctl enable lightdm
-"
-
-# Create default user if provided
-if [ ! -z "$LIME_USER" ]; then
-    log_info "Creating user: $LIME_USER"
-    chroot "$CHROOT_PATH" /bin/bash -c "
-        if ! id '$LIME_USER' &>/dev/null; then
-            useradd -m -G wheel,audio,video,storage -s /bin/bash '$LIME_USER'
-            echo 'User $LIME_USER created'
-        fi
-    "
+if [[ ! -d "$TARGET_ROOT" ]]; then
+  warn "Target root not found: $TARGET_ROOT"
+  exit 1
 fi
 
-# Install LiMe-specific packages
-log_info "Installing LiMe packages..."
-chroot "$CHROOT_PATH" /bin/bash -c "
-    pacman -Sy --noconfirm \
-        lime-cinnamon \
-        lime-ai-app \
-        lime-installer \
-        lime-welcome \
-        lime-themes
+run_in_target() {
+  arch-chroot "$TARGET_ROOT" /bin/bash -lc "$1"
+}
 
-    # Optional: Install development tools
-    # pacman -Sy --noconfirm base-devel gcc make cmake
-"
+if ! command -v arch-chroot >/dev/null 2>&1; then
+  warn "arch-chroot missing (install arch-install-scripts)"
+  exit 1
+fi
 
-# Create LiMe skeleton directories
-log_info "Setting up user skeleton..."
-chroot "$CHROOT_PATH" /bin/bash -c "
-    mkdir -p /etc/skel/.config/lime
-    mkdir -p /etc/skel/.local/share/lime
+log "Enabling core services"
+run_in_target "systemctl enable NetworkManager || true"
+run_in_target "systemctl enable lightdm || true"
 
-    # Copy default configs
-    cp -r /usr/share/lime/default-config/* /etc/skel/.config/lime/ || true
-"
+log "Creating user $LIME_USER if absent"
+run_in_target "id '$LIME_USER' >/dev/null 2>&1 || useradd -m -G wheel,audio,video,storage -s /bin/bash '$LIME_USER'"
+run_in_target "sed -i 's/^# %wheel ALL=(ALL:ALL) NOPASSWD: ALL/%wheel ALL=(ALL:ALL) NOPASSWD: ALL/' /etc/sudoers"
 
-# Configure LiMe themes
-log_info "Setting up themes..."
-chroot "$CHROOT_PATH" /bin/bash -c "
-    mkdir -p /usr/share/lime/themes
-    mkdir -p /usr/share/lime/icons
-    mkdir -p /usr/share/lime/wallpapers
-"
+log "Ensuring LiMe directories"
+run_in_target "mkdir -p /usr/share/lime/{themes,icons,wallpapers}"
+run_in_target "mkdir -p /etc/skel/.config/lime /etc/skel/.local/share/lime"
 
-# Enable services
-log_info "Enabling system services..."
-chroot "$CHROOT_PATH" /bin/bash -c "
-    systemctl enable NetworkManager
-    systemctl enable sshd
-"
+log "Regenerating locale and clocks"
+run_in_target "locale-gen || true"
+run_in_target "hwclock --systohc || true"
 
-# Configure locale and timezone
-log_info "Final configuration..."
-chroot "$CHROOT_PATH" /bin/bash -c "
-    locale-gen
-    hwclock --systohc
-"
-
-log_info "Post-installation complete!"
+log "Post-install steps completed"

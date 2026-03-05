@@ -22,8 +22,6 @@ class ArchAutoInstaller:
     def __init__(self, config_file: str = "/tmp/lime-install.json", dry_run: bool = False):
         self.config_file = config_file
         self.dry_run = dry_run
-    def __init__(self, config_file: str = "/tmp/lime-install.json"):
-        self.config_file = config_file
         self.config = self._load_or_create_config()
         self.mount_point = "/mnt/lime-os"
         self.pacstrap_packages = [
@@ -132,13 +130,6 @@ class ArchAutoInstaller:
                 kb = int(match.group(1))
                 return kb // (1024 * 1024)
         except Exception:
-            result = subprocess.run(["grep", "MemTotal", "/proc/meminfo"],
-                                  capture_output=True, text=True)
-            match = re.search(r'(\d+)', result.stdout)
-            if match:
-                kb = int(match.group(1))
-                return kb // (1024 * 1024)
-        except:
             pass
         return 4
 
@@ -212,8 +203,6 @@ class ArchAutoInstaller:
         if shutil.which("lsblk") is not None:
             result = subprocess.run(["lsblk", disk], capture_output=True, text=True)
             print(result.stdout)
-        result = subprocess.run(["lsblk", "-h", disk], capture_output=True, text=True)
-        print(result.stdout)
 
         # In production: could add automatic detection/validation
         return True
@@ -517,7 +506,6 @@ class ArchAutoInstaller:
         print(f"\n[SETTING ROOT PASSWORD]")
 
         rootpass = self.config.get("rootpass") or "root"
-        rootpass = self.config.get("rootpass", "root")
 
         self._run_cmd(["sh", "-c", f"echo 'root:{rootpass}' | chpasswd"],
                      chroot=True,
@@ -620,11 +608,6 @@ def main():
         sys.exit(1)
 
     installer = ArchAutoInstaller(config_file=args.config, dry_run=args.dry_run)
-    if os.geteuid() != 0:
-        print("This script must be run as root")
-        sys.exit(1)
-
-    installer = ArchAutoInstaller()
     success = installer.install_lime_os_complete()
 
     sys.exit(0 if success else 1)

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Modern LiMe ISO builder orchestrator
+# LiMe ISO build runner
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -29,13 +29,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-CMD=(python3 "$PROJECT_ROOT/build.py" --clean)
+CMD=(python3 "$PROJECT_ROOT/build.py" --clean --repo-branch "$REPO_BRANCH")
 [[ -n "$SYNC_UPSTREAM" ]] && CMD+=("$SYNC_UPSTREAM")
 [[ -n "$SKIP_ISO" ]] && CMD+=("$SKIP_ISO")
 [[ -n "$REPO_URL" ]] && CMD+=(--repo-url "$REPO_URL")
-CMD+=(--repo-branch "$REPO_BRANCH")
 
 log "Running: ${CMD[*]}"
 "${CMD[@]}"
 
-log "Build completed. See out/BUILD_REPORT.txt"
+log "Build finished. See $PROJECT_ROOT/out/BUILD_REPORT.txt"
