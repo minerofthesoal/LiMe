@@ -435,10 +435,6 @@ Build Log Entries: {len(self.build_log)}
 Components Built:
 {components if components else '  (no steps recorded)'}
 
-===================================================
-"""
-
-    def build_all(self, skip_iso: bool = False) -> bool:
         logger.info("=" * 60)
         logger.info("LiMe OS Complete Build Process Starting")
         logger.info("=" * 60)
