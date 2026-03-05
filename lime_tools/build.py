@@ -590,13 +590,15 @@ Build Log Entries: {len(self.build_log)}
 Components Built:
 {components if components else '  (no steps recorded)'}
 
+"""
+
+    def build_all(self, skip_iso: bool = False) -> bool:
 Next Steps:
   1. Write ISO to USB: sudo dd if={self.out_dir}/{self.config['iso_name']}-{self.config['version']}-{self.config['arch']}.iso of=/dev/sdX bs=4M
   2. Boot from USB
   3. Run the graphical installer
   4. Enjoy LiMe OS!
 
-===================================================
 """
         return report
 
