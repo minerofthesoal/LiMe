@@ -30,8 +30,5 @@ dependencies = [
 [project.scripts]
 lime-installer = "installer:main"
 
-[tool.setuptools.packages.find]
-where = ["src"]
-
-[tool.setuptools.package-dir]
-"" = "src"
+[tool.setuptools]
+py-modules = ["installer", "installer_ui"]

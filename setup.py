@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import setup
 
 setup(
     name="lime-installer",
@@ -8,22 +8,8 @@ setup(
     author_email="dev@lime-os.local",
     url="https://github.com/lime-os/lime-installer",
     license="GPL-2.0",
-    packages=find_packages(where="src"),
-    package_dir={"": "src"},
+    py_modules=["installer", "installer_ui"],
     python_requires=">=3.8",
-    install_requires=[
-        "PyQt5>=5.15.0",
-    ],
-    entry_points={
-        "console_scripts": [
-            "lime-installer=installer:main",
-        ],
-    },
-    classifiers=[
-        "Development Status :: 3 - Alpha",
-        "Environment :: X11 Applications :: Qt",
-        "License :: OSI Approved :: GNU General Public License v2 (GPLv2)",
-        "Operating System :: POSIX :: Linux",
-        "Programming Language :: Python :: 3",
-    ],
+    install_requires=["PyQt5>=5.15.0"],
+    entry_points={"console_scripts": ["lime-installer=installer:main"]},
 )
