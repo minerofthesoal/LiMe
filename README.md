@@ -347,3 +347,11 @@ Contributions welcome! Areas that can be improved:
 **Version**: 0.1.0 (Alpha)
 **Platform**: Linux (x86_64)
 **Desktop Session**: LiMe/Cinnamon compatible
+
+## v0.1.1-prealpha Improvements
+
+- Organized automation code into `lime_tools/` with compatibility launchers at repository root.
+- Added project layout organizer for build, packager, ui, install, assets/backgrounds, models, and datasets directories.
+- Added AI workbench scaffolding for model training configs, dataset manifests, paper templates, and GGUF-oriented metadata.
+- Added a lightweight Custom API v1 server (`lime_tools/api_v1.py`) with health and API-key state endpoints.
+- Added hardware-aware driver package auto-selection in the Arch installer flow.
