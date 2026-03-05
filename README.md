@@ -361,9 +361,3 @@ Contributions welcome! Areas that can be improved:
 - Builder now packages a full source archive with SHA256 checksum after syncing repository files for reproducible/offline builds.
 - Added upstream sync tooling to pull Linux Mint edition metadata and Cinnamon upstream snapshots for fork tracking.
 - Added a long-form install/build operations manual at `install/BUILD_AND_INSTALL_INSTRUCTIONS.md` (1000+ lines).
-
-
-## v0.1.1.1-prealpha Hotfixes
-
-- Fixed a startup edge case in the builder by safely resolving source root before component path detection.
-- Updated versioning and installer title to `v0.1.1.1-prealpha`.

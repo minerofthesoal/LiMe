@@ -15,6 +15,9 @@ import logging
 import argparse
 import multiprocessing
 import hashlib
+import urllib.request
+import hashlib
+import time
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Tuple, Optional
@@ -47,6 +50,8 @@ class LiMeBuilder:
         self.repo_url = repo_url
         self.repo_branch = repo_branch
         self.sync_upstream = sync_upstream
+    def __init__(self, project_root: Path, verbose: bool = False):
+        self.project_root = Path(project_root)
         self.verbose = verbose
         self.build_dir = self.project_root / "build"
         self.out_dir = self.project_root / "out"
@@ -64,9 +69,9 @@ class LiMeBuilder:
 
     def _detect_component_dir(self, candidates: List[str], sentinel: str) -> Path:
         """Find component directory with graceful fallback to project root."""
-        base_root = getattr(self, "source_root", self.project_root)
         for candidate in candidates:
-            directory = base_root / candidate
+            directory = self.source_root / candidate
+            directory = self.project_root / candidate
             if (directory / sentinel).exists():
                 return directory
         return self.project_root
@@ -275,6 +280,8 @@ class LiMeBuilder:
         try:
             organize(self.source_root)
             AIWorkbench(self.source_root).scaffold()
+            organize(self.project_root)
+            AIWorkbench(self.project_root).scaffold()
             logger.info("✓ Project layout organized")
             return True
         except Exception as e:
@@ -725,7 +732,7 @@ def main():
         # Don't exit, allow component-only build
 
     try:
-        builder = LiMeBuilder(args.project_root, verbose=args.verbose, repo_url=args.repo_url, repo_branch=args.repo_branch, sync_upstream=args.sync_upstream)
+        builder = LiMeBuilder(args.project_root, verbose=args.verbose)
 
         if args.clean:
             logger.info("Cleaning previous build artifacts...")
