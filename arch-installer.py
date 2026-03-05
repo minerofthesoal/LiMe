@@ -438,12 +438,16 @@ class ArchAutoInstaller:
                      chroot=True,
                      description="Set user password")
 
-        # Add user to sudoers
+        # Add user to wheel group and allow wheel sudo without password
+        self._run_cmd(["usermod", "-aG", "wheel", username],
+                     chroot=True,
+                     description="Add user to wheel group")
+
         self._run_cmd(["sed", "-i",
-                      f"/^# %sudo/s/^# //{username} ALL=(ALL) NOPASSWD: ALL}/",
+                      "s/^# %wheel ALL=(ALL:ALL) NOPASSWD: ALL/%wheel ALL=(ALL:ALL) NOPASSWD: ALL/",
                       "/etc/sudoers"],
                      chroot=True,
-                     description="Add user to sudoers")
+                     description="Enable wheel sudoers rule")
 
         print(f"✓ User {username} created")
         return True
