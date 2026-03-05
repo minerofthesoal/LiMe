@@ -158,7 +158,7 @@ class LiMeBuilder:
         config_file = self.project_root / "build.config.json"
 
         default_config = {
-            "version": "0.1.1-prealpha",
+            "version": "0.1.1.1-prealpha",
             "iso_name": "lime-os",
             "arch": "x86_64",
             "kernel": "linux",

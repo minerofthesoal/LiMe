@@ -113,7 +113,7 @@ class InstallerWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("LiMe OS Installer v0.1.1-prealpha")
+        self.setWindowTitle("LiMe OS Installer v0.1.1.1-prealpha")
         self.setGeometry(100, 100, 1000, 700)
         self.config = {}
         self.worker = None

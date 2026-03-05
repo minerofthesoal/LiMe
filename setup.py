@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="lime-installer",
-    version="0.1.1a0",
+    version="0.1.1.1a0",
     description="LiMe OS Graphical Installer",
     author="LiMe OS Team",
     author_email="dev@lime-os.local",
