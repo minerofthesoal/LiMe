@@ -1,0 +1,55 @@
+# Build artifacts
+/build/
+/out/
+*.o
+*.a
+*.so
+*.pkg.tar.zst
+*.iso
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Meson
+meson-private/
+meson-logs/
+
+# Models and large files
+models/
+*.tar.gz
+*.tar.xz
+
+# Temporary files
+.tmp/
+tmp/
+*.temp
+
+# Dependencies
+venv/
+node_modules/
+
+# Local configuration
+.env
+local.conf
+*.local
+
+# Test coverage
+.coverage
+htmlcov/
+
+# Generated files
+*.generated.c
+*.generated.h
